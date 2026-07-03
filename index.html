@@ -72,6 +72,7 @@
     display:flex; align-items:center; gap:.6rem; margin:0 0 .5rem;
   }
   .block__eyebrow::before{content:""; width:22px; height:2px; background:var(--red)}
+  .opt-tag{font-family:var(--f-mono); font-size:.62rem; font-weight:400; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); vertical-align:middle; margin-left:.5rem;}
   .block__head h2{
     font-family:var(--f-display); font-weight:700; letter-spacing:-.02em;
     font-size:clamp(1.5rem,3.4vw,2rem); margin:0; line-height:1.05;
@@ -332,7 +333,47 @@
           <label for="team">Aantal mensen / ploeg <span class="opt">(optioneel)</span></label>
           <input type="text" id="team" data-key="over.team" placeholder="Bijv. vaste ploeg van 3">
         </div>
+        <div class="field full">
+          <label for="cert">Certificeringen <span class="opt">(optioneel)</span></label>
+          <input type="text" id="cert" data-key="bedrijf.certificeringen" placeholder="Bijv. VCA - laat leeg als je die niet hebt">
+        </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Reviews -->
+  <section class="block">
+    <div class="wrap">
+      <div class="block__head">
+        <p class="block__eyebrow">Reviews</p>
+        <h2>Wat klanten over je zeggen <span class="opt-tag">optioneel</span></h2>
+        <p>Heb je reviews (Google, mail, WhatsApp)? Plak er een paar. Alleen echte reviews; we zetten niets verzonnen op de site.</p>
+      </div>
+      <div class="grid cols-2">
+        <div class="field">
+          <label for="ratingScore">Google-score <span class="opt">(optioneel)</span></label>
+          <input type="text" id="ratingScore" data-key="rating.score" placeholder="Bijv. 4,9">
+        </div>
+        <div class="field">
+          <label for="ratingAantal">Aantal reviews <span class="opt">(optioneel)</span></label>
+          <input type="text" id="ratingAantal" data-key="rating.aantal" placeholder="Bijv. 27">
+        </div>
+      </div>
+      <div class="rows" id="reviewRows"></div>
+      <button type="button" class="btn btn--ghost btn--add" id="addReview">+ Review toevoegen</button>
+    </div>
+  </section>
+
+  <!-- Recent werk / cases -->
+  <section class="block">
+    <div class="wrap">
+      <div class="block__head">
+        <p class="block__eyebrow">Recent werk</p>
+        <h2>Een paar projecten <span class="opt-tag">optioneel</span></h2>
+        <p>Korte voorbeelden van klussen die goed laten zien wat je doet. Foto's mag je los naar ons mailen, die plaatsen wij erbij.</p>
+      </div>
+      <div class="rows" id="caseRows"></div>
+      <button type="button" class="btn btn--ghost btn--add" id="addCase">+ Project toevoegen</button>
     </div>
   </section>
 
@@ -413,7 +454,7 @@
     bedrijf:{ naam:"BEBO Betonboren & Zagen", ondertitel:"Betonboren & Zagen",
       tel:"010-3220232", whatsapp:"", email:"info@bebobetonboren.nl",
       straat:"Industrieweg 69-156", postcode_plaats:"2651 BC Berkel en Rodenrijs",
-      kvk:"59493038", openingstijden:"" },
+      kvk:"59493038", openingstijden:"", certificeringen:"" },
     diensten:[
       {titel:"Betonboren", spec:"Ø 12-500 mm", tekst:"Diamantboren voor sparingen, leidingen, ventilatie en kernen. Schoon, recht en exact op maat - ook stofvrij waar geen water mag."},
       {titel:"Wandzagen", spec:"tot 60 cm diep", tekst:"Strakke deur- en raamsparingen en complete doorbraken in wanden van beton en steen, met nette kanten en minimale overlast."},
@@ -429,6 +470,8 @@
       {kop:"Ploeg die nakomt", tekst:"Afspraak is afspraak: op tijd, netjes en opgeruimd achtergelaten."}
     ],
     over:{ omschrijving:"", ervaring:"", team:"" },
+    reviews:[],
+    cases:[],
     kop:{ titel:"", lede:"" }
   };
 
@@ -437,6 +480,8 @@
 
   var dienstRows = $("#dienstRows");
   var waaromRows = $("#waaromRows");
+  var reviewRows = $("#reviewRows");
+  var caseRows = $("#caseRows");
   var toastEl = $("#toast");
   var saveTimer=null;
 
@@ -485,9 +530,54 @@
     return el;
   }
   function pad(n){ return (n<10?"0":"")+n; }
+  function reviewRow(r, i){
+    r = r||{naam:"",rol:"",ster:"",tekst:""};
+    var el=document.createElement("div"); el.className="row";
+    el.innerHTML =
+      '<div class="row__top">'+
+        '<span class="row__num">'+pad(i+1)+'</span>'+
+        '<div class="field row__title-input"><input type="text" class="rv-naam" placeholder="Naam klant" aria-label="Naam klant"></div>'+
+        '<button type="button" class="row__del" aria-label="Verwijder">verwijder</button>'+
+      '</div>'+
+      '<div class="row__grid">'+
+        '<div class="field"><label>Wie / rol <span class="opt">(optioneel)</span></label><input type="text" class="rv-rol" placeholder="Bijv. aannemer, Rotterdam"></div>'+
+        '<div class="field"><label>Sterren <span class="opt">(1-5)</span></label><input type="text" class="rv-ster" inputmode="numeric" placeholder="5"></div>'+
+        '<div class="field full"><label>Review</label><textarea class="rv-tekst" placeholder="Wat de klant schreef."></textarea></div>'+
+      '</div>';
+    $(".rv-naam",el).value=r.naam||"";
+    $(".rv-rol",el).value=r.rol||"";
+    $(".rv-ster",el).value=r.ster||"";
+    $(".rv-tekst",el).value=r.tekst||"";
+    $(".row__del",el).addEventListener("click",function(){ el.remove(); renumber(); scheduleSave(); });
+    $$("input,textarea",el).forEach(function(f){ f.addEventListener("input",scheduleSave); });
+    return el;
+  }
+  function caseRow(c, i){
+    c = c||{titel:"",meta:"",tekst:""};
+    var el=document.createElement("div"); el.className="row";
+    el.innerHTML =
+      '<div class="row__top">'+
+        '<span class="row__num">'+pad(i+1)+'</span>'+
+        '<div class="field row__title-input"><input type="text" class="cs-titel" placeholder="Titel van het project" aria-label="Titel project"></div>'+
+        '<button type="button" class="row__del" aria-label="Verwijder">verwijder</button>'+
+      '</div>'+
+      '<div class="row__grid">'+
+        '<div class="field"><label>Kort label <span class="opt">(optioneel)</span></label><input type="text" class="cs-meta" placeholder="Bijv. 2 dagen, centrum Rotterdam"></div>'+
+        '<div class="field"></div>'+
+        '<div class="field full"><label>Wat je deed</label><textarea class="cs-tekst" placeholder="1 tot 2 zinnen over de klus en het resultaat."></textarea></div>'+
+      '</div>';
+    $(".cs-titel",el).value=c.titel||"";
+    $(".cs-meta",el).value=c.meta||"";
+    $(".cs-tekst",el).value=c.tekst||"";
+    $(".row__del",el).addEventListener("click",function(){ el.remove(); renumber(); scheduleSave(); });
+    $$("input,textarea",el).forEach(function(f){ f.addEventListener("input",scheduleSave); });
+    return el;
+  }
   function renumber(){
     $$(".row__num",dienstRows).forEach(function(n,i){ n.textContent=pad(i+1); });
     $$(".row__num",waaromRows).forEach(function(n,i){ n.textContent=pad(i+1); });
+    $$(".row__num",reviewRows).forEach(function(n,i){ n.textContent=pad(i+1); });
+    $$(".row__num",caseRows).forEach(function(n,i){ n.textContent=pad(i+1); });
   }
 
   // ---- Lezen / schrijven ----
@@ -499,12 +589,16 @@
     });
     dienstRows.innerHTML=""; (data.diensten||[]).forEach(function(d,i){ dienstRows.appendChild(dienstRow(d,i)); });
     waaromRows.innerHTML=""; (data.waarom||[]).forEach(function(w,i){ waaromRows.appendChild(waaromRow(w,i)); });
+    reviewRows.innerHTML=""; (data.reviews||[]).forEach(function(r,i){ reviewRows.appendChild(reviewRow(r,i)); });
+    caseRows.innerHTML=""; (data.cases||[]).forEach(function(c,i){ caseRows.appendChild(caseRow(c,i)); });
     if(!dienstRows.children.length) dienstRows.appendChild(dienstRow(null,0));
     if(!waaromRows.children.length) waaromRows.appendChild(waaromRow(null,0));
+    if(!reviewRows.children.length) reviewRows.appendChild(reviewRow(null,0));
+    if(!caseRows.children.length) caseRows.appendChild(caseRow(null,0));
     updateMeter();
   }
   function collect(){
-    var data={ bedrijf:{}, diensten:[], werkgebied:{}, waarom:[], over:{}, kop:{} };
+    var data={ bedrijf:{}, diensten:[], werkgebied:{}, waarom:[], over:{}, kop:{}, reviews:[], cases:[] };
     $$("[data-key]").forEach(function(f){
       var path=f.getAttribute("data-key").split(".");
       var obj=data; for(var i=0;i<path.length-1;i++){ obj[path[i]]=obj[path[i]]||{}; obj=obj[path[i]]; }
@@ -517,6 +611,15 @@
     $$(".row",waaromRows).forEach(function(r){
       var k=$(".w-kop",r).value.trim(), x=$(".w-tekst",r).value.trim();
       if(k||x) data.waarom.push({kop:k,tekst:x});
+    });
+    $$(".row",reviewRows).forEach(function(r){
+      var naam=$(".rv-naam",r).value.trim(), rol=$(".rv-rol",r).value.trim(),
+          ster=$(".rv-ster",r).value.trim(), tekst=$(".rv-tekst",r).value.trim();
+      if(naam||tekst) data.reviews.push({naam:naam, rol:rol, ster:ster, tekst:tekst});
+    });
+    $$(".row",caseRows).forEach(function(r){
+      var titel=$(".cs-titel",r).value.trim(), meta=$(".cs-meta",r).value.trim(), tekst=$(".cs-tekst",r).value.trim();
+      if(titel||tekst) data.cases.push({titel:titel, meta:meta, tekst:tekst});
     });
     return data;
   }
@@ -559,6 +662,7 @@
     line("E-mail:          "+(b.email||"-"));
     line("Adres:           "+([b.straat,b.postcode_plaats].filter(Boolean).join(", ")||"-"));
     if(b.kvk) line("KvK:             "+b.kvk);
+    if(b.certificeringen) line("Certificeringen: "+b.certificeringen);
     if(b.openingstijden) line("Openingstijden:  "+b.openingstijden);
     line("");
     line("== WERKZAAMHEDEN ("+(d.diensten.length)+") ==");
@@ -578,6 +682,23 @@
     line(o.omschrijving||"-");
     if(o.ervaring) line("Ervaring: "+o.ervaring);
     if(o.team) line("Ploeg: "+o.team);
+    var rt=d.rating||{};
+    if((d.reviews&&d.reviews.length)||rt.score){
+      line("");
+      line("== REVIEWS ==");
+      if(rt.score) line("Score: "+rt.score+(rt.aantal?" ("+rt.aantal+" reviews)":""));
+      (d.reviews||[]).forEach(function(r){
+        line("- \""+(r.tekst||"")+"\" - "+(r.naam||"")+(r.rol?", "+r.rol:"")+(r.ster?" ["+r.ster+"/5]":""));
+      });
+    }
+    if(d.cases&&d.cases.length){
+      line("");
+      line("== RECENT WERK ==");
+      d.cases.forEach(function(c,i){
+        line((i+1)+". "+(c.titel||"(titel?)")+(c.meta?"  ["+c.meta+"]":""));
+        if(c.tekst) line("   "+c.tekst);
+      });
+    }
     if((d.kop&&(d.kop.titel||d.kop.lede))){
       line(""); line("== KOPTEKST (voorkeur klant) ==");
       if(d.kop.titel) line("Kop: "+d.kop.titel);
@@ -622,6 +743,8 @@
   // ---- Events ----
   $("#addDienst").addEventListener("click",function(){ dienstRows.appendChild(dienstRow(null,dienstRows.children.length)); scheduleSave(); });
   $("#addWaarom").addEventListener("click",function(){ waaromRows.appendChild(waaromRow(null,waaromRows.children.length)); scheduleSave(); });
+  $("#addReview").addEventListener("click",function(){ reviewRows.appendChild(reviewRow(null,reviewRows.children.length)); scheduleSave(); });
+  $("#addCase").addEventListener("click",function(){ caseRows.appendChild(caseRow(null,caseRows.children.length)); scheduleSave(); });
   $("#generate").addEventListener("click",generate);
   $("#resetExample").addEventListener("click",function(){ if(confirm("Alle velden terugzetten naar de voorbeeldtekst?")){ setFields(VOORBEELD); save(); toast("Voorbeeld hersteld"); } });
   $("#clearAll").addEventListener("click",function(){ if(confirm("Alles leegmaken en opnieuw beginnen?")){ setFields({bedrijf:{},diensten:[],werkgebied:{},waarom:[],over:{},kop:{}}); save(); toast("Leeggemaakt"); } });
